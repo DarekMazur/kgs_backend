@@ -1,0 +1,15 @@
+html, body {
+  background-color: #272724;
+  color: #eef7eb;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+.logo {
+  margin: 2rem;
+  width: 100vw;
+  height: 200px;
+  background: url(assest/logoFullW.png) center/contain no-repeat;
+}
