@@ -9,6 +9,12 @@
   "author": "DarekMazur",
   "license": "MIT",
   "devDependencies": {
+    "@types/express": "^5.0.0",
+    "eslint": "^9.14.0",
+    "nodemon": "^3.1.7",
     "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "express": "^4.21.1"
   }
 }
