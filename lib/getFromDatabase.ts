@@ -6,11 +6,32 @@ const getFromDatabase = async (table: string, res: Response, id?: string | numbe
 
 	if (client) {
 		console.log('Connected to database');
+
 		const result = await client.query(`SELECT * FROM ${table}`);
 		if (result !== undefined) {
 			let rows = [...result.rows];
 			if (id) {
 				rows = rows.filter((row) => row.id === id);
+			}
+			if (table === 'users') {
+				const roles = await client.query('SELECT * FROM roles');
+
+				rows = rows.map(user => ({
+					id: user.id,
+					username: user.username,
+					email: user.email,
+					firstName: user.firstname,
+					lastName: user.lastname,
+					avatar: user.avatar,
+					description: user.description,
+					isBanned: user.is_banned,
+					suspensionTimeout: user.suspension_timeout,
+					totalSuspensions: user.total_suspensions,
+					isConfirmed: user.is_confirmed,
+					messages: user.messages ?? [],
+					registrationDate: new Date(Number(user.registration_date)),
+					role: roles.rows.filter(role => role.id === user.role_id),
+				}))
 			}
 			res.status(200).send(rows);
 			console.log('Results sent')

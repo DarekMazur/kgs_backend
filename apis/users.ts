@@ -23,6 +23,7 @@ router.post("/", async (req, res) => {
 		email: req.body.email,
 		password: req.body.password,
 		registrationDate: Date.now(),
+		messages: [],
 		role_id: req.body.role.id,
 	}
 
@@ -38,7 +39,7 @@ router.post("/", async (req, res) => {
 	if (client) {
 		console.log('Connected to database');
 
-		await client.query(`INSERT INTO users (id, username, email, password, registration_date, role_id) VALUES ('${newUser.id}', '${newUser.username}', '${newUser.email}', '${newUser.password}', '${newUser.registrationDate}', '${newUser.role_id}') ON CONFLICT DO NOTHING;`)
+		await client.query(`INSERT INTO users (id, username, email, password, messages, registration_date, role_id) VALUES ('${newUser.id}', '${newUser.username}', '${newUser.email}', '${newUser.password}', '${newUser.messages}', '${newUser.registrationDate}', '${newUser.role_id}') ON CONFLICT DO NOTHING;`)
 			.then(() => {
 				res.status(200).send(publicUser).end();
 				console.log('New user sent to database');
