@@ -1,6 +1,7 @@
 import express from "express";
 import { v4 as uuidv4 } from "uuid";
 import getFromDatabase from "../lib/getFromDatabase";
+import {pool} from "../client";
 const router = express.Router();
 
 router.use(express.json());
@@ -15,26 +16,42 @@ router.get("/:itemId", async (req, res) => {
 	await getFromDatabase('users', res, itemId)
 });
 
-router.post("/", (req, res) => {
+router.post("/", async (req, res) => {
 	const newUser = {
 		id: uuidv4(),
 		username: req.body.username,
 		email: req.body.email,
 		password: req.body.password,
-		firstName: req.body.firstName,
-		lastName: req.body.lastName,
-		avatar: req.body.avatar,
-		description: req.body.description,
-		registrationDate: req.body.registrationDate,
-		isBanned: false,
-		suspensionTimeout: null,
-		totalSuspensions: 0,
-		isConfirmed: false,
-		messages: [],
+		registrationDate: Date.now(),
 		role_id: req.body.role.id,
 	}
 
-	res.status(200).send(newUser);
+	const publicUser = {
+		username: newUser.username,
+		email: newUser.email,
+		registrationDate: new Date(newUser.registrationDate),
+		role_id: newUser.role_id,
+	}
+
+	const client = await pool.connect()
+
+	if (client) {
+		console.log('Connected to database');
+
+		await client.query(`INSERT INTO users (id, username, email, password, registration_date, role_id) VALUES ('${newUser.id}', '${newUser.username}', '${newUser.email}', '${newUser.password}', '${newUser.registrationDate}', '${newUser.role_id}') ON CONFLICT DO NOTHING;`)
+			.then(() => {
+				res.status(200).send(publicUser).end();
+				console.log('New user sent to database');
+				client.release()
+				console.log('Client released');
+			})
+			.catch((err) => {
+				res.status(500).send('Sending error');
+				console.error('Sending ' + err);
+			})
+	} else {
+		res.status(500).send('Connection failed');
+	}
 });
 
 export default router;
