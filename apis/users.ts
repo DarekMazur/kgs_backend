@@ -5,7 +5,7 @@ import {pool} from "../client";
 import deleteFromDatabase from "../lib/deleteFromDatabase";
 const router = express.Router();
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken'
+import jwt, {JwtPayload} from 'jsonwebtoken'
 import {emailVerification} from "../lib/constants";
 import process from "node:process";
 
@@ -127,15 +127,31 @@ router.post("/", async (req, res) => {
 	}
 });
 
-router.put("/activation/:itemId", async (req, res) => {
-	const itemId = req.params.itemId
+router.put("/activation/:auth", async (req, res) => {
+	const token = req.params.auth
+
+	let decoded: string | JwtPayload
+
+	try {
+		decoded = jwt.verify(token, process.env.TOKEN_SECRET_KEY);
+	} catch (error) {
+		res.status(403).send(`Authentication failed: ${error.message}`).end();
+		return
+	}
+
+	if (!decoded) {
+		res.status(403).send('Authentication failed').end();
+	}
+
 	const client = await pool.connect()
 
 	if (!client) {
 		res.status(500).send('Connection failed').end();
 	}
 
-	const user = await client.query(`SELECT * FROM users WHERE id = ($1)`, [itemId])
+	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+	// @ts-expect-error
+	const user = await client.query(`SELECT * FROM users WHERE id=($1)`, [decoded.id])
 
 	if (!user || user.rows.length === 0) {
 		res.status(403).send('Authentication failed').end();
@@ -145,7 +161,9 @@ router.put("/activation/:itemId", async (req, res) => {
 		res.status(403).json('User already activated').end();
 	} else {
 		try {
-			await client.query(`UPDATE users SET is_confirmed=true WHERE id=($1)`, [itemId])
+			// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+			// @ts-expect-error
+			await client.query(`UPDATE users SET is_confirmed=true WHERE id=($1)`, [decoded.id])
 			res.status(200).send('User activated').end();
 		} catch (error) {
 			res.status(500).send(error.message);
