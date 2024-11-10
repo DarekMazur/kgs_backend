@@ -1,10 +1,13 @@
-import express from "express";
+import express, {response} from "express";
 import { v4 as uuidv4 } from "uuid";
 import getFromDatabase from "../lib/getFromDatabase";
 import {pool} from "../client";
 import deleteFromDatabase from "../lib/deleteFromDatabase";
 const router = express.Router();
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken'
+import {emailVerification} from "../lib/constants";
+import process from "node:process";
 
 router.use(express.json());
 
@@ -12,6 +15,69 @@ const hashedPassword = (pass: string, salt: string) =>  bcrypt.hash(pass, salt);
 
 router.get('/', async (_req, res) => {
 	await getFromDatabase('users', res)
+})
+
+router.get('/login', async (req, res) => {
+	if (req.body.email && emailVerification(req.body.email)) {
+		const client = await pool.connect()
+		const user = await client.query(`SELECT * FROM users WHERE email = '${req.body.email}'`);
+		const loggedUser = user.rows[0]
+
+		if (loggedUser) {
+			if (await bcrypt.compare(req.body.password + loggedUser.registration_date, loggedUser.password)) {
+				const role = await client.query(`SELECT * FROM roles WHERE id='${loggedUser.role_id}'`);
+				const posts = await client.query(`SELECT * FROM posts WHERE author_id='${loggedUser.id}'`);
+				const token = jwt.sign({
+					id: loggedUser.id,
+					role_id: role.rows[0].id
+				}, process.env.TOKEN_SECRET_KEY as string, { expiresIn: process.env.TOKEN_EXPIRATION_TIME })
+
+				const response = {
+					data: {
+						id: loggedUser.id,
+						loggedUsername: loggedUser.loggedUsername,
+						email: loggedUser.email,
+						firstName: loggedUser.firstname,
+						lastName: loggedUser.lastname,
+						avatar: loggedUser.avatar,
+						description: loggedUser.description,
+						isBanned: loggedUser.is_banned,
+						suspensionTimeout: loggedUser.suspension_timeout,
+						totalSuspensions: loggedUser.total_suspensions,
+						isConfirmed: loggedUser.is_confirmed,
+						messages: loggedUser.messages ?? [],
+						posts: posts.rows,
+						registrationDate: new Date(Number(loggedUser.registration_date)),
+						role: role.rows[0],
+					},
+					token,
+				}
+				res.status(200).send(response).end();
+			} else {
+				res.status(403).send('Authentication failed').end();
+			}
+		} else {
+			res.status(403).send('User not found').end();
+		}
+	}
+})
+
+router.get("/current", async (req, res) => {
+	if (!req.header('Authorization') || !req.body.id) {
+		res.status(500).send('Connection failed').end();
+	}
+
+	const token = (req.header('Authorization') as string).split(' ')[1]
+
+	const decoded = jwt.verify(token, process.env.TOKEN_SECRET_KEY);
+
+	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+	// @ts-expect-error
+	if (decoded.id !== req.body.id) {
+		res.status(403).send('Authentication failed').end();
+	}
+
+	await getFromDatabase('users', res, req.body.id)
 })
 
 router.get("/:itemId", async (req, res) => {
