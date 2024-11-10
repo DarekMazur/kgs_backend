@@ -15,6 +15,7 @@ const getFromDatabase = async (table: string, res: Response, id?: string | numbe
 			}
 			if (table === 'users') {
 				const roles = await client.query('SELECT * FROM roles');
+				const posts = await client.query('SELECT * FROM posts');
 
 				rows = rows.map(user => ({
 					id: user.id,
@@ -29,6 +30,7 @@ const getFromDatabase = async (table: string, res: Response, id?: string | numbe
 					totalSuspensions: user.total_suspensions,
 					isConfirmed: user.is_confirmed,
 					messages: user.messages ?? [],
+					posts: posts.rows.filter(post => post.author_id === user.id),
 					registrationDate: new Date(Number(user.registration_date)),
 					role: roles.rows.filter(role => role.id === user.role_id),
 				}))
