@@ -32,7 +32,7 @@ const getFromDatabase = async (table: string, res: Response, id?: string | numbe
 					messages: user.messages ?? [],
 					posts: posts.rows.filter(post => post.author_id === user.id),
 					registrationDate: new Date(Number(user.registration_date)),
-					role: roles.rows.filter(role => role.id === user.role_id),
+					role: roles.rows.filter(role => role.id === user.role_id)[0],
 				}))
 			}
 			res.status(200).send(rows);

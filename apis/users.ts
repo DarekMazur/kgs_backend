@@ -6,6 +6,7 @@ import deleteFromDatabase from "../lib/deleteFromDatabase";
 const router = express.Router();
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken'
+import process from "node:process";
 
 router.use(express.json());
 
