@@ -8,6 +8,7 @@ import bcrypt from 'bcrypt';
 import jwt, {JwtPayload} from 'jsonwebtoken'
 import {emailVerification} from "../lib/constants";
 import process from "node:process";
+import sendMail from "../lib/sendMail";
 
 router.use(express.json());
 
@@ -100,6 +101,7 @@ router.post("/", async (req, res) => {
 	}
 
 	const publicUser = {
+		id: newUser.id,
 		username: newUser.username,
 		email: newUser.email,
 		registrationDate: new Date(newUser.registrationDate),
@@ -112,10 +114,22 @@ router.post("/", async (req, res) => {
 		console.log('Connected to database');
 
 		await client.query(`INSERT INTO users (id, username, email, password, registration_date, role_id) VALUES ('${newUser.id}', '${newUser.username}', '${newUser.email}', '${newUser.password}', '${newUser.registrationDate}', '${newUser.role_id}') ON CONFLICT DO NOTHING;`)
-			.then(() => {
-				res.status(200).send(publicUser).end();
+			.then(async () => {
 				console.log('New user sent to database');
+
+				const token = jwt.sign({
+					id: newUser.id
+				}, process.env.TOKEN_SECRET_KEY as string, { expiresIn: process.env.CONFIRMATION_TOKEN_EXPIRATION_TIME })
+
+				const options = {
+					email: newUser.email,
+					username: newUser.username,
+					token,
+				}
+
+				sendMail(options)
 				client.release()
+				res.status(200).send(publicUser);
 				console.log('Client released');
 			})
 			.catch((err) => {
@@ -127,7 +141,7 @@ router.post("/", async (req, res) => {
 	}
 });
 
-router.put("/activation/:auth", async (req, res) => {
+router.get("/activation/:auth", async (req, res) => {
 	const token = req.params.auth
 
 	let decoded: string | JwtPayload
