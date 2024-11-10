@@ -1,13 +1,21 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import cors from "cors";
 import path from 'path'
 import api from './apis/api'
+import process from "node:process";
 
 const app = express();
 const port = process.env.PORT || 3000;
 
 dotenv.config()
 
+const corsOptions = {
+	origin: process.env.ORIGIN || "*",
+	optionsSuccessStatus: 200,
+};
+
+app.use(cors(corsOptions));
 app.use(express.static(__dirname + '/src'));
 app.use('/api', api);
 
