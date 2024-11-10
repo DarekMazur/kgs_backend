@@ -5,6 +5,7 @@ import {pool} from "../client";
 import deleteFromDatabase from "../lib/deleteFromDatabase";
 const router = express.Router();
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken'
 
 router.use(express.json());
 
@@ -12,6 +13,24 @@ const hashedPassword = (pass: string, salt: string) =>  bcrypt.hash(pass, salt);
 
 router.get('/', async (_req, res) => {
 	await getFromDatabase('users', res)
+})
+
+router.get("/current", async (req, res) => {
+	if (!req.header('Authorization') || !req.body.id) {
+		res.status(500).send('Connection failed').end();
+	}
+
+	const token = (req.header('Authorization') as string).split(' ')[1]
+
+	const decoded = jwt.verify(token, process.env.TOKEN_SECRET_KEY);
+
+	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+	// @ts-expect-error
+	if (decoded.id !== req.body.id) {
+		res.status(403).send('Authentication failed').end();
+	}
+
+	await getFromDatabase('users', res, req.body.id)
 })
 
 router.get("/:itemId", async (req, res) => {
