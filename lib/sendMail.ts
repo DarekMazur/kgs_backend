@@ -16,7 +16,7 @@ const sendMail = ({email, username, token}) => {
 	});
 
 	const mailOptions = {
-		from: 'Korona Gór Świętokrzyskich <kontakt@nerdistry.pl>',
+		from: `Korona Gór Świętokrzyskich <${process.env.CONFIRM_SENDER_EMAIL}>`,
 		to: email,
 		subject: `Korona Gór Świętokrzyskich - utworzono konto Użytkownika ${username}`,
 		text: `Konto Użytkownika ${username} zostało utworzone!
