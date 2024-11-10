@@ -4,8 +4,11 @@ import getFromDatabase from "../lib/getFromDatabase";
 import {pool} from "../client";
 import deleteFromDatabase from "../lib/deleteFromDatabase";
 const router = express.Router();
+import bcrypt from 'bcrypt';
 
 router.use(express.json());
+
+const hashedPassword = (pass: string, salt: string) =>  bcrypt.hash(pass, salt);
 
 router.get('/', async (_req, res) => {
 	await getFromDatabase('users', res)
@@ -18,12 +21,15 @@ router.get("/:itemId", async (req, res) => {
 });
 
 router.post("/", async (req, res) => {
+	const timestamp = Date.now();
+	const salt = await bcrypt.genSalt();
+
 	const newUser = {
 		id: uuidv4(),
 		username: req.body.username,
 		email: req.body.email,
-		password: req.body.password,
-		registrationDate: Date.now(),
+		password: await hashedPassword(req.body.password + timestamp.toString(), salt),
+		registrationDate: timestamp,
 		role_id: req.body.role.id,
 	}
 
@@ -63,13 +69,14 @@ router.put("/:itemId", async (req, res) => {
 	if (client) {
 		const responseUser = await client.query(`SELECT * FROM users WHERE id=($1)::uuid`, [itemId]);
 		const roles = await client.query('SELECT * FROM roles');
+		const salt = await bcrypt.genSalt();
 
 		const user = responseUser.rows[0];
 
 		const updatedUser = {
 			username: req.body.username ?? user.username,
 			email: user.email,
-			password: req.body.password ?? user.password,
+			password: await hashedPassword(req.body.password + user.registration_date, salt) ?? user.password,
 			firstname: req.body.firstName ?? user.firstname,
 			lastname: req.body.lastName ?? user.lastname,
 			avatar: req.body.avatar ?? user.avatar,
