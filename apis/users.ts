@@ -8,6 +8,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken'
 import {emailVerification} from "../lib/constants";
 import process from "node:process";
+import sendMail from "../lib/sendMail";
 
 router.use(express.json());
 
@@ -20,7 +21,7 @@ router.get('/', async (_req, res) => {
 router.get('/login', async (req, res) => {
 	if (req.body.email && emailVerification(req.body.email)) {
 		const client = await pool.connect()
-		const user = await client.query(`SELECT * FROM users WHERE email = '${req.body.email}'`);
+		const user = await client.query(`SELECT * FROM users WHERE email = '${req.body.email.toLowerCase()}'`);
 		const loggedUser = user.rows[0]
 
 		if (loggedUser) {
@@ -90,32 +91,57 @@ router.post("/", async (req, res) => {
 	const timestamp = Date.now();
 	const salt = await bcrypt.genSalt();
 
+	const client = await pool.connect()
+
+	const checkEmail = await client.query(`SELECT * FROM users WHERE email='${req.body.email.toLowerCase()}'`)
+
+	if (checkEmail && checkEmail.rows.length > 0) {
+		res.status(403).send('Email already registered').end();
+		return
+	}
+
 	const newUser = {
 		id: uuidv4(),
 		username: req.body.username,
-		email: req.body.email,
+		email: req.body.email.toLowerCase(),
 		password: await hashedPassword(req.body.password + timestamp.toString(), salt),
 		registrationDate: timestamp,
 		role_id: req.body.role.id,
 	}
 
 	const publicUser = {
+		id: newUser.id,
 		username: newUser.username,
 		email: newUser.email,
 		registrationDate: new Date(newUser.registrationDate),
 		role_id: newUser.role_id,
 	}
 
-	const client = await pool.connect()
-
 	if (client) {
 		console.log('Connected to database');
 
-		await client.query(`INSERT INTO users (id, username, email, password, registration_date, role_id) VALUES ('${newUser.id}', '${newUser.username}', '${newUser.email}', '${newUser.password}', '${newUser.registrationDate}', '${newUser.role_id}') ON CONFLICT DO NOTHING;`)
-			.then(() => {
-				res.status(200).send(publicUser).end();
+		try {
+			const token = jwt.sign({
+				id: newUser.id
+			}, process.env.TOKEN_SECRET_KEY as string, { expiresIn: process.env.CONFIRMATION_TOKEN_EXPIRATION_TIME })
+
+			const options = {
+				email: newUser.email.toLowerCase(),
+				username: newUser.username,
+				token,
+			}
+
+			sendMail(options)
+		} catch (error) {
+			res.status(500).send(error.message).end();
+			return
+		}
+
+		await client.query(`INSERT INTO users (id, username, email, password, registration_date, role_id) VALUES ('${newUser.id}', '${newUser.username}', '${newUser.email.toLowerCase()}', '${newUser.password}', '${newUser.registrationDate}', '${newUser.role_id}') ON CONFLICT DO NOTHING;`)
+			.then(async () => {
 				console.log('New user sent to database');
 				client.release()
+				res.status(200).send(publicUser);
 				console.log('Client released');
 			})
 			.catch((err) => {
