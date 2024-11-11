@@ -125,9 +125,29 @@ router.post("/", async (req, res) => {
 				id: newUser.id
 			}, process.env.AUTH_SECRET_KEY as string, { expiresIn: process.env.CONFIRMATION_TOKEN_EXPIRATION_TIME })
 
+			const text = `Konto Użytkownika ${newUser.username} zostało utworzone!
+Konto aktywujesz pod linkiem: ${process.env.API_HOST}/confirm/${token}
+Link aktywacyjny jest ważny przez 24 godziny.`
+
+			const html = `
+				<body style="width: 100%; height: 100%; background-color: #272724; color: #eef7eb; padding: 2rem">
+					<div style="background: url(https://res.cloudinary.com/ddyqnp7pp/image/upload/v1731279976/logoFullW_lylrnm.png) center/contain no-repeat; margin: 2rem; width: 100vw; height: 200px;"></div>
+					<h1 style="font-weight: bold; margin-bottom: 2rem">Konto Użytkownika <span style="color: #d99e1a">${newUser.username}</span> zostało utworzone!</h1>
+					<p style="overflow-wrap: break-word">Konto aktywujesz pod linkiem: <a href="${process.env.API_HOST}/confirm/${token}">${process.env.API_HOST}/confirm/${token}</a></p>
+					<p>Link aktywacyjny jest ważny przez 24 godziny.</p>
+					<div style="margin-top: 3rem">
+						<p>Pozdrawiamy</p>
+						<p style="font-weight: bold">Zespół Korony Gór Świętokrzyskich</p>
+					</div>
+				</body>`
+
+			const subject = `Korona Gór Świętokrzyskich - utworzono konto Użytkownika ${newUser.username}`
+
 			const options = {
 				email: newUser.email.toLowerCase(),
-				username: newUser.username,
+				text,
+				html,
+				subject,
 				token,
 			}
 
