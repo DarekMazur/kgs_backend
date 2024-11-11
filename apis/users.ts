@@ -123,7 +123,7 @@ router.post("/", async (req, res) => {
 		try {
 			const token = jwt.sign({
 				id: newUser.id
-			}, process.env.TOKEN_SECRET_KEY as string, { expiresIn: process.env.CONFIRMATION_TOKEN_EXPIRATION_TIME })
+			}, process.env.AUTH_SECRET_KEY as string, { expiresIn: process.env.CONFIRMATION_TOKEN_EXPIRATION_TIME })
 
 			const options = {
 				email: newUser.email.toLowerCase(),
