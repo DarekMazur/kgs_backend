@@ -21,7 +21,7 @@ router.get('/', async (_req, res) => {
 router.get('/login', async (req, res) => {
 	if (req.body.email && emailVerification(req.body.email)) {
 		const client = await pool.connect()
-		const user = await client.query(`SELECT * FROM users WHERE email = '${req.body.email}'`);
+		const user = await client.query(`SELECT * FROM users WHERE email = '${req.body.email.toLowerCase()}'`);
 		const loggedUser = user.rows[0]
 
 		if (loggedUser) {
@@ -91,10 +91,19 @@ router.post("/", async (req, res) => {
 	const timestamp = Date.now();
 	const salt = await bcrypt.genSalt();
 
+	const client = await pool.connect()
+
+	const checkEmail = await client.query(`SELECT * FROM users WHERE email='${req.body.email.toLowerCase()}'`)
+
+	if (checkEmail && checkEmail.rows.length > 0) {
+		res.status(403).send('Email already registered').end();
+		return
+	}
+
 	const newUser = {
 		id: uuidv4(),
 		username: req.body.username,
-		email: req.body.email,
+		email: req.body.email.toLowerCase(),
 		password: await hashedPassword(req.body.password + timestamp.toString(), salt),
 		registrationDate: timestamp,
 		role_id: req.body.role.id,
@@ -108,8 +117,6 @@ router.post("/", async (req, res) => {
 		role_id: newUser.role_id,
 	}
 
-	const client = await pool.connect()
-
 	if (client) {
 		console.log('Connected to database');
 
@@ -119,7 +126,7 @@ router.post("/", async (req, res) => {
 			}, process.env.TOKEN_SECRET_KEY as string, { expiresIn: process.env.CONFIRMATION_TOKEN_EXPIRATION_TIME })
 
 			const options = {
-				email: newUser.email,
+				email: newUser.email.toLowerCase(),
 				username: newUser.username,
 				token,
 			}
@@ -130,7 +137,7 @@ router.post("/", async (req, res) => {
 			return
 		}
 
-		await client.query(`INSERT INTO users (id, username, email, password, registration_date, role_id) VALUES ('${newUser.id}', '${newUser.username}', '${newUser.email}', '${newUser.password}', '${newUser.registrationDate}', '${newUser.role_id}') ON CONFLICT DO NOTHING;`)
+		await client.query(`INSERT INTO users (id, username, email, password, registration_date, role_id) VALUES ('${newUser.id}', '${newUser.username}', '${newUser.email.toLowerCase()}', '${newUser.password}', '${newUser.registrationDate}', '${newUser.role_id}') ON CONFLICT DO NOTHING;`)
 			.then(async () => {
 				console.log('New user sent to database');
 				client.release()
