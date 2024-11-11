@@ -4,6 +4,7 @@ import cors from "cors";
 import path from 'path'
 import api from './apis/api'
 import activation from './apis/activation'
+import recovery from './apis/recovery'
 import process from "node:process";
 
 const app = express();
@@ -20,6 +21,7 @@ app.use(cors(corsOptions));
 app.use(express.static(__dirname + '/src'));
 app.use('/api', api);
 app.use('/confirm', activation);
+app.use('/recovery', recovery);
 
 app.get('/', (_req, res) => {
 	res.sendFile(path.join(__dirname, '/src/index.html'));
