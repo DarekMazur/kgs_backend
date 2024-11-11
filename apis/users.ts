@@ -5,7 +5,7 @@ import {pool} from "../client";
 import deleteFromDatabase from "../lib/deleteFromDatabase";
 const router = express.Router();
 import bcrypt from 'bcrypt';
-import jwt, {JwtPayload} from 'jsonwebtoken'
+import jwt from 'jsonwebtoken'
 import {emailVerification} from "../lib/constants";
 import process from "node:process";
 import sendMail from "../lib/sendMail";
@@ -113,21 +113,26 @@ router.post("/", async (req, res) => {
 	if (client) {
 		console.log('Connected to database');
 
+		try {
+			const token = jwt.sign({
+				id: newUser.id
+			}, process.env.TOKEN_SECRET_KEY as string, { expiresIn: process.env.CONFIRMATION_TOKEN_EXPIRATION_TIME })
+
+			const options = {
+				email: newUser.email,
+				username: newUser.username,
+				token,
+			}
+
+			sendMail(options)
+		} catch (error) {
+			res.status(500).send(error.message).end();
+			return
+		}
+
 		await client.query(`INSERT INTO users (id, username, email, password, registration_date, role_id) VALUES ('${newUser.id}', '${newUser.username}', '${newUser.email}', '${newUser.password}', '${newUser.registrationDate}', '${newUser.role_id}') ON CONFLICT DO NOTHING;`)
 			.then(async () => {
 				console.log('New user sent to database');
-
-				const token = jwt.sign({
-					id: newUser.id
-				}, process.env.TOKEN_SECRET_KEY as string, { expiresIn: process.env.CONFIRMATION_TOKEN_EXPIRATION_TIME })
-
-				const options = {
-					email: newUser.email,
-					username: newUser.username,
-					token,
-				}
-
-				sendMail(options)
 				client.release()
 				res.status(200).send(publicUser);
 				console.log('Client released');
