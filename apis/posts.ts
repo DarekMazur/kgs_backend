@@ -130,4 +130,24 @@ router.put('/:itemId', async (req, res) => {
 	}
 })
 
+router.delete('/:itemId', async (req, res) => {
+	if (req.params.itemId) {
+		const client = await pool.connect();
+
+		if (client) {
+			const itemId = req.params.itemId
+
+			await client.query(`DELETE FROM posts WHERE id=($1)`, [itemId]).then(() => {
+				res.status(200).send('Item deleted');
+			}).catch((err) => {
+				res.status(500).send(`Connection failed: ${err.message}`);
+			})
+		} else {
+			res.status(500).send('Connection failed');
+		}
+	} else {
+		res.status(400).send('Request failed');
+	}
+})
+
 export default router;
