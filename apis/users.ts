@@ -9,13 +9,18 @@ import jwt from 'jsonwebtoken'
 import {emailVerification} from "../lib/constants";
 import process from "node:process";
 import sendMail from "../lib/sendMail";
+import authorisation from "../lib/authorisation";
 
 router.use(express.json());
 
 const hashedPassword = (pass: string, salt: string) =>  bcrypt.hash(pass, salt);
 
-router.get('/', async (_req, res) => {
-	await getFromDatabase('users', res)
+router.get('/', async (req, res) => {
+	const token = (req.header('Authorization' as string).split(' ')[1])
+
+	if (authorisation(token, res)) {
+		await getFromDatabase('users', res)
+	}
 })
 
 router.get('/login', async (req, res) => {
@@ -65,111 +70,113 @@ router.get('/login', async (req, res) => {
 
 router.get("/current", async (req, res) => {
 	if (!req.header('Authorization') || !req.body.id) {
-		res.status(500).send('Connection failed').end();
+		res.status(400).send('Request failed').end();
 	}
 
 	const token = (req.header('Authorization') as string).split(' ')[1]
 
-	const decoded = jwt.verify(token, process.env.TOKEN_SECRET_KEY);
-
-	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-	// @ts-expect-error
-	if (decoded.id !== req.body.id) {
-		res.status(403).send('Authentication failed').end();
+	if (authorisation(token, res, req.body.id)) {
+		await getFromDatabase('users', res, req.body.id)
 	}
-
-	await getFromDatabase('users', res, req.body.id)
 })
 
 router.get("/:itemId", async (req, res) => {
 	const itemId = req.params.itemId;
 
-	await getFromDatabase('users', res, itemId)
+	const token = (req.header('Authorization' as string).split(' ')[1])
+
+	if (authorisation(token, res)) {
+		await getFromDatabase('users', res, itemId)
+	}
 });
 
 router.post("/", async (req, res) => {
 	const timestamp = Date.now();
 	const salt = await bcrypt.genSalt();
 
-	const client = await pool.connect()
+	const token = (req.header('Authorization' as string).split(' ')[1])
 
-	const checkEmail = await client.query(`SELECT * FROM users WHERE email='${req.body.email.toLowerCase()}'`)
+	if (authorisation(token, res)) {
+		const client = await pool.connect()
 
-	if (checkEmail && checkEmail.rows.length > 0) {
-		res.status(403).send('Email already registered').end();
-		return
-	}
+		const checkEmail = await client.query(`SELECT * FROM users WHERE email='${req.body.email.toLowerCase()}'`)
 
-	const newUser = {
-		id: uuidv4(),
-		username: req.body.username,
-		email: req.body.email.toLowerCase(),
-		password: await hashedPassword(req.body.password + timestamp.toString(), salt),
-		registrationDate: timestamp,
-		role_id: req.body.role.id,
-	}
-
-	const publicUser = {
-		id: newUser.id,
-		username: newUser.username,
-		email: newUser.email,
-		registrationDate: new Date(newUser.registrationDate),
-		role_id: newUser.role_id,
-	}
-
-	if (client) {
-		console.log('Connected to database');
-
-		try {
-			const token = jwt.sign({
-				id: newUser.id
-			}, process.env.AUTH_SECRET_KEY as string, { expiresIn: process.env.CONFIRMATION_TOKEN_EXPIRATION_TIME })
-
-			const text = `Konto Użytkownika ${newUser.username} zostało utworzone!
-Konto aktywujesz pod linkiem: ${process.env.API_HOST}/confirm/${token}
-Link aktywacyjny jest ważny przez 24 godziny.`
-
-			const html = `
-				<body style="width: 100%; height: 100%; background-color: #272724; color: #eef7eb; padding: 2rem">
-					<div style="background: url(https://res.cloudinary.com/ddyqnp7pp/image/upload/v1731279976/logoFullW_lylrnm.png) center/contain no-repeat; margin: 2rem; width: 100vw; height: 200px;"></div>
-					<h1 style="font-weight: bold; margin-bottom: 2rem">Konto Użytkownika <span style="color: #d99e1a">${newUser.username}</span> zostało utworzone!</h1>
-					<p style="overflow-wrap: break-word">Konto aktywujesz pod linkiem: <a href="${process.env.API_HOST}/confirm/${token}">${process.env.API_HOST}/confirm/${token}</a></p>
-					<p>Link aktywacyjny jest ważny przez 24 godziny.</p>
-					<div style="margin-top: 3rem">
-						<p>Pozdrawiamy</p>
-						<p style="font-weight: bold">Zespół Korony Gór Świętokrzyskich</p>
-					</div>
-				</body>`
-
-			const subject = `Korona Gór Świętokrzyskich - utworzono konto Użytkownika ${newUser.username}`
-
-			const options = {
-				email: newUser.email.toLowerCase(),
-				text,
-				html,
-				subject,
-				token,
-			}
-
-			sendMail(options)
-		} catch (error) {
-			res.status(500).send(error.message).end();
+		if (checkEmail && checkEmail.rows.length > 0) {
+			res.status(403).send('Email already registered').end();
 			return
 		}
 
-		await client.query(`INSERT INTO users (id, username, email, password, registration_date, role_id) VALUES ('${newUser.id}', '${newUser.username}', '${newUser.email.toLowerCase()}', '${newUser.password}', '${newUser.registrationDate}', '${newUser.role_id}') ON CONFLICT DO NOTHING;`)
-			.then(async () => {
-				console.log('New user sent to database');
-				client.release()
-				res.status(200).send(publicUser);
-				console.log('Client released');
-			})
-			.catch((err) => {
-				res.status(500).send('Sending error');
-				console.error('Sending ' + err);
-			})
-	} else {
-		res.status(500).send('Connection failed');
+		const newUser = {
+			id: uuidv4(),
+			username: req.body.username,
+			email: req.body.email.toLowerCase(),
+			password: await hashedPassword(req.body.password + timestamp.toString(), salt),
+			registrationDate: timestamp,
+			role_id: req.body.role.id,
+		}
+
+		const publicUser = {
+			id: newUser.id,
+			username: newUser.username,
+			email: newUser.email,
+			registrationDate: new Date(newUser.registrationDate),
+			role_id: newUser.role_id,
+		}
+
+		if (client) {
+			console.log('Connected to database');
+
+			try {
+				const token = jwt.sign({
+					id: newUser.id
+				}, process.env.AUTH_SECRET_KEY as string, { expiresIn: process.env.CONFIRMATION_TOKEN_EXPIRATION_TIME })
+
+				const text = `Konto Użytkownika ${newUser.username} zostało utworzone!
+Konto aktywujesz pod linkiem: ${process.env.API_HOST}/confirm/${token}
+Link aktywacyjny jest ważny przez 24 godziny.`
+
+				const html = `
+					<body style="width: 100%; height: 100%; background-color: #272724; color: #eef7eb; padding: 2rem">
+						<div style="background: url(https://res.cloudinary.com/ddyqnp7pp/image/upload/v1731279976/logoFullW_lylrnm.png) center/contain no-repeat; margin: 2rem; width: 100vw; height: 200px;"></div>
+						<h1 style="font-weight: bold; margin-bottom: 2rem">Konto Użytkownika <span style="color: #d99e1a">${newUser.username}</span> zostało utworzone!</h1>
+						<p style="overflow-wrap: break-word">Konto aktywujesz pod linkiem: <a href="${process.env.API_HOST}/confirm/${token}">${process.env.API_HOST}/confirm/${token}</a></p>
+						<p>Link aktywacyjny jest ważny przez 24 godziny.</p>
+						<div style="margin-top: 3rem">
+							<p>Pozdrawiamy</p>
+							<p style="font-weight: bold">Zespół Korony Gór Świętokrzyskich</p>
+						</div>
+					</body>`
+
+				const subject = `Korona Gór Świętokrzyskich - utworzono konto Użytkownika ${newUser.username}`
+
+				const options = {
+					email: newUser.email.toLowerCase(),
+					text,
+					html,
+					subject,
+					token,
+				}
+
+				sendMail(options)
+			} catch (error) {
+				res.status(500).send(error.message).end();
+				return
+			}
+
+			await client.query(`INSERT INTO users (id, username, email, password, registration_date, role_id) VALUES ('${newUser.id}', '${newUser.username}', '${newUser.email.toLowerCase()}', '${newUser.password}', '${newUser.registrationDate}', '${newUser.role_id}') ON CONFLICT DO NOTHING;`)
+				.then(async () => {
+					console.log('New user sent to database');
+					client.release()
+					res.status(200).send(publicUser);
+					console.log('Client released');
+				})
+				.catch((err) => {
+					res.status(500).send('Sending error');
+					console.error('Sending ' + err);
+				})
+		} else {
+			res.status(500).send('Connection failed');
+		}
 	}
 });
 
@@ -222,7 +229,11 @@ router.put("/:itemId", async (req, res) => {
 router.delete("/:itemId", async (req, res) => {
 	const itemId = req.params.itemId;
 
-	await deleteFromDatabase('users', res, itemId)
+	const token = (req.header('Authorization' as string).split(' ')[1])
+
+	if (authorisation(token, res)) {
+		await deleteFromDatabase('users', res, itemId)
+	}
 })
 
 export default router;
