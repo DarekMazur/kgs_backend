@@ -58,6 +58,20 @@ const getFromDatabase = async (table: string, res: Response, id?: string | numbe
 					}))[0],
 				}))
 			}
+
+			if ( table === 'peaks' ) {
+				rows = rows.map(peak => ({
+					id: peak.id,
+					name: peak.name,
+					height: peak.height,
+					description: peak.description,
+					trial: peak.trial,
+					localizationLat: peak.localization_lat,
+					localizationLng: peak.localization_lng,
+					image: peak.image,
+				}))
+			}
+
 			res.status(200).send(rows);
 			console.log('Results sent')
 			client.release()
