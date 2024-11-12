@@ -87,4 +87,47 @@ router.post('/', async (req, res) => {
 	}
 })
 
+router.put('/:itemId', async (req, res) => {
+	if (req.params.itemId && req.body) {
+		const client = await pool.connect()
+
+		if (client) {
+			const itemId = req.params.itemId;
+			const { notes, photo, isHidden } = req.body
+
+			const post = await client.query(`SELECT * FROM posts WHERE id=($1)`, [itemId]).then(response => {
+				return response.rows[0]
+			})
+			const author = await client.query(`SELECT * FROM users WHERE id=($1)`, [post.autor_id]).then(response => {
+				return response.rows[0]
+			})
+			const peak = await client.query(`SELECT * FROM peaks WHERE id=($1)`, [post.peak_id]).then(response => {
+				return response.rows[0]
+			})
+
+			const updatedPost = {
+				id: itemId,
+				createdAt: post.created_at,
+				notes: notes ?? post.notes,
+				photo: photo ?? post.photo,
+				peak,
+				isHidden: isHidden === undefined ? post.is_hidden : isHidden,
+				author,
+			}
+
+			await client.query(`UPDATE posts SET notes='${updatedPost.notes}', photo='${updatedPost.photo}', is_hidden='${updatedPost.isHidden}' WHERE id=($1)`, [itemId]).then(() => {
+				res.status(200).send(updatedPost);
+			}).catch((err) => {
+				res.status(500).send(`Connection failed: ${err.message}`);
+			})
+
+
+		} else {
+			res.status(500).send('Connection failed');
+		}
+	} else {
+		res.status(400).send('Request failed');
+	}
+})
+
 export default router;
