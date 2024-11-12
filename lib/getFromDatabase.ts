@@ -42,7 +42,7 @@ const getFromDatabase = async (table: string, res: Response, id?: string | numbe
 
 				rows = rows.map(post => ({
 					id: post.id,
-					createdAt: new Date(post.created_at),
+					createdAt: new Date(Number(post.created_at)),
 					notes: post.notes,
 					photo: post.photo,
 					peak:	peaks.rows.filter(peak => peak.id === post.peak_id)[0],

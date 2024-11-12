@@ -29,7 +29,7 @@ router.get('/:itemId', async (req, res) => {
 
 	const postTemplate = {
 		id: post.id,
-		createdAt: new Date(post.created_at),
+		createdAt: new Date(Number(post.created_at)),
 		notes: post.notes,
 		photo: post.photo,
 		peak,
