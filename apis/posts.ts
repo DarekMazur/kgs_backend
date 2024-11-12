@@ -1,7 +1,10 @@
 import express from 'express';
+import { v4 as uuidv4 } from "uuid";
 import getFromDatabase from "../lib/getFromDatabase";
 import {pool} from "../client";
 const router = express.Router();
+
+router.use(express.json());
 
 router.get('/', async (_req, res) => {
 	await getFromDatabase('posts', res)
@@ -43,6 +46,45 @@ router.get('/:itemId', async (req, res) => {
 	}
 
 	res.status(200).send(postTemplate)
+})
+
+router.post('/', async (req, res) => {
+	const now = Date.now()
+	const id = uuidv4()
+
+	if (req.body) {
+		const {notes, photo, peakId, authorId} = req.body
+
+		const client = await pool.connect();
+
+		if (client) {
+			const author = await client.query('SELECT id, username, firstname, avatar, suspension_timeout, is_banned, role_id FROM users WHERE id=($1)', [authorId]).then(response => {
+				return response.rows[0]
+			})
+
+			const peak = await client.query(`SELECT * FROM peaks WHERE id = ($1)`, [peakId]).then(response => {
+				return response.rows[0]
+			})
+
+			await client.query(`INSERT INTO posts (id, created_at, notes, photo, peak_id, is_hidden, author_id) VALUES ('${id}', '${now}', '${notes}', '${photo}', '${peak.id}', '${false}', '${author.id}') ON CONFLICT DO NOTHING;`).then(() => {
+				const newPost = {
+					id,
+					createdAt: new Date(now),
+					notes,
+					photo,
+					peak,
+					isHidden: false,
+					author,
+				}
+
+				res.status(200).send(newPost)
+			})
+		} else {
+			res.status(500).send('Connection failed');
+		}
+	} else {
+		res.status(400).send('Request failed')
+	}
 })
 
 export default router;
