@@ -1,4 +1,4 @@
-import express from "express";
+import express, {response} from "express";
 import { v4 as uuidv4 } from "uuid";
 import getFromDatabase from "../lib/getFromDatabase";
 import {pool} from "../client";
@@ -102,7 +102,7 @@ router.post("/", async (req, res) => {
 		const checkEmail = await client.query(`SELECT * FROM users WHERE email='${req.body.email.toLowerCase()}'`)
 
 		if (checkEmail && checkEmail.rows.length > 0) {
-			res.status(403).send('Email already registered');
+			res.status(403).json({"message": 'Email already registered'});
 			return
 		}
 
@@ -238,13 +238,81 @@ router.put("/:itemId", async (req, res) => {
 																is_confirmed='${updatedUser.is_confirmed}',
 																role_id='${updatedUser.role_id}'
 														WHERE id = ($1)::uuid`, [user.id]);
-				res.status(200).send(updatedUser).end();
+				res.status(200).send(updatedUser);
 			} catch (error) {
 				res.status(500).send(error.message);
 			}
 		}
 	} else {
 		res.status(500).send('Connection failed');
+	}
+})
+
+router.put("/messages/:itemId/", async (req, res) => {
+	const itemId = req.params.itemId;
+
+	if (itemId) {
+		const token = (req.header('Authorization' as string)?.split(' ')[1])
+
+		if (authorisation(token, res, itemId)) {
+			const client = await pool.connect()
+
+			if (client) {
+				const { message, header, priority } = req.body;
+
+				const user = await client.query(`SELECT * FROM users WHERE id=($1)`, [itemId]).then(async response => {
+					return response.rows[0];
+				})
+
+				const messageBody = {
+					id: uuidv4(),
+					priority: priority,
+					header: header,
+					message: message,
+					sendTime: Date.now(),
+					openedTime: null
+				}
+
+				if (user) {
+					const role = await client.query(`SELECT * FROM roles WHERE id='${user.role_id}'`).then((response) => {
+						return response.rows[0];
+					});
+					const posts = await client.query(`SELECT * FROM posts WHERE author_id='${user.id}'`).then(response => {
+						return response.rows;
+					});
+
+					const updatedUser = {
+						id: user.id,
+						username: user.username,
+						email: user.email,
+						firstName: user.firstname,
+						lastName: user.lastname,
+						avatar: user.avatar,
+						description: user.description,
+						isBanned: user.is_banned,
+						suspensionTimeout: user.suspension_timeout,
+						totalSuspensions: user.total_suspensions,
+						isConfirmed: user.is_confirmed,
+						messages: [...(user.messages || []), messageBody],
+						posts,
+						registrationDate: new Date(Number(user.registration_date)),
+						role,
+					}
+
+					await client.query(`UPDATE users SET messages='${JSON.stringify(updatedUser.messages)}' WHERE id=($1)`, [itemId]);
+
+					res.status(200).send(updatedUser)
+				} else {
+					res.status(404).json({"message": 'User not found'});
+				}
+			} else {
+				res.status(500).json({"message": 'Connection failed'});
+			}
+		} else {
+			res.status(403).json({"message": 'Authentication failed'});
+		}
+	} else {
+		res.status(400).json({"message": 'Request failed'})
 	}
 })
 
