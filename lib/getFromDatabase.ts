@@ -1,5 +1,6 @@
 import {Response} from "express";
 import {pool} from "../client";
+import {IPublicPeak, IPublicPost, IPublicUser, IResponsePeak, IResponsePost, IResponseUser, IRole} from "./types";
 
 const getFromDatabase = async (table: string, res: Response, id?: string | number) => {
 	const client = await pool.connect()
@@ -7,17 +8,31 @@ const getFromDatabase = async (table: string, res: Response, id?: string | numbe
 	if (client) {
 		console.log('Connected to database');
 
-		const result = await client.query(`SELECT * FROM ${table}`);
-		if (result !== undefined) {
-			let rows = [...result.rows];
-			if (id) {
-				rows = rows.filter((row) => row.id === id);
+		const results: (IRole | IResponseUser | IResponsePost | IResponsePeak)[] = await client.query(`SELECT * FROM ${table}`).then(response => {
+			return response.rows;
+		});
+		if (results !== undefined) {
+			let rows: (IRole | IPublicUser | IPublicPost | IPublicPeak)[] = [];
+
+			if (table === 'roles') {
+				rows = [...(results as IRole[])]
+
+				if (id) {
+					rows = rows.filter((row) => row.id === id);
+				}
 			}
 			if (table === 'users') {
-				const roles = await client.query('SELECT * FROM roles');
-				const posts = await client.query('SELECT * FROM posts');
+				const roles: IRole[] = await client.query('SELECT * FROM roles').then(response => {
+					return response.rows
+				});
+				const posts: IResponsePost[] = await client.query('SELECT * FROM posts').then(response => {
+					return response.rows;
+				});
+				const peaks: IResponsePeak[] = await client.query('SELECT * FROM peaks').then(response => {
+					return response.rows;
+				});
 
-				rows = rows.map(user => ({
+				rows = results.map((user: IResponseUser) => ({
 					id: user.id,
 					username: user.username,
 					email: user.email,
@@ -26,28 +41,52 @@ const getFromDatabase = async (table: string, res: Response, id?: string | numbe
 					avatar: user.avatar,
 					description: user.description,
 					isBanned: user.is_banned,
-					suspensionTimeout: user.suspension_timeout,
+					suspensionTimeout: new Date(Number(user.suspension_timeout)),
 					totalSuspensions: user.total_suspensions,
 					isConfirmed: user.is_confirmed,
 					messages: user.messages ?? [],
-					posts: posts.rows.filter(post => post.author_id === user.id),
+					posts: posts.filter(post => post.author_id === user.id).map(post => ({
+						id: post.id,
+						createdAt: new Date(Number(post.created_at)),
+						notes: post.notes,
+						photo: post.photo,
+						peak:	peaks.filter(peak => peak.id === post.peak_id)[0],
+						isHidden: post.is_hidden,
+						author: {
+							id: user.id,
+							username: user.username,
+							firstName: user.firstname,
+							avatar: user.avatar,
+							isSuspended: !!user.suspension_timeout && user.suspension_timeout > Date.now(),
+							isBanned: user.is_banned,
+							role: user.role_id,
+						}
+					})),
 					registrationDate: new Date(Number(user.registration_date)),
-					role: roles.rows.filter(role => role.id === user.role_id)[0],
+					role: roles.filter(role => role.id === user.role_id)[0],
 				}))
+
+				if (id) {
+					rows = rows.filter((row) => row.id === id);
+				}
 			}
 
 			if ( table === 'posts' ) {
-				const users = await client.query('SELECT id, username, firstname, avatar, suspension_timeout, is_banned, role_id FROM users');
-				const peaks = await client.query('SELECT * FROM peaks');
+				const users: IResponseUser[] = await client.query('SELECT id, username, firstname, avatar, suspension_timeout, is_banned, role_id FROM users').then(response => {
+					return response.rows;
+				});
+				const peaks: IResponsePeak[] = await client.query('SELECT * FROM peaks').then(response => {
+					return response.rows;
+				});
 
-				rows = rows.map(post => ({
+				rows = results.map((post: IResponsePost) => ({
 					id: post.id,
 					createdAt: new Date(Number(post.created_at)),
 					notes: post.notes,
 					photo: post.photo,
-					peak:	peaks.rows.filter(peak => peak.id === post.peak_id)[0],
+					peak:	peaks.filter(peak => peak.id === post.peak_id)[0],
 					isHidden: post.is_hidden,
-					author: users.rows.filter(user => user.id === post.author_id).map(author => ({
+					author: users.filter(user => user.id === post.author_id).map(author => ({
 						id: author.id,
 						username: author.username,
 						firstName: author.firstname,
@@ -57,10 +96,14 @@ const getFromDatabase = async (table: string, res: Response, id?: string | numbe
 						role: author.role_id,
 					}))[0],
 				}))
+
+				if (id) {
+					rows = rows.filter((row) => row.id === id);
+				}
 			}
 
 			if ( table === 'peaks' ) {
-				rows = rows.map(peak => ({
+				rows = results.map((peak: IResponsePeak) => ({
 					id: peak.id,
 					name: peak.name,
 					height: peak.height,
@@ -70,6 +113,10 @@ const getFromDatabase = async (table: string, res: Response, id?: string | numbe
 					localizationLng: peak.localization_lng,
 					image: peak.image,
 				}))
+
+				if (id) {
+					rows = rows.filter((row) => row.id === id);
+				}
 			}
 
 			res.status(200).send(rows);

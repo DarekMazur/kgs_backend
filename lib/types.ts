@@ -72,7 +72,7 @@ export interface IResponsePost extends IPost {
 export interface IPublicUser extends IUser {
 	firstName?: string,
 	lastName?: string,
-	inBanned: boolean,
+	isBanned: boolean,
 	suspensionTimeout?: Date,
 	totalSuspensions: number,
 	isConfirmed: boolean,
@@ -84,7 +84,7 @@ export interface IPublicUser extends IUser {
 export interface IResponseUser extends IUser {
 	firstname?: string,
 	lastname?: string,
-	in_banned: boolean,
+	is_banned: boolean,
 	suspension_timeout?: number,
 	total_suspensions: number,
 	is_confirmed: boolean,
