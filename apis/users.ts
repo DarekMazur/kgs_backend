@@ -10,6 +10,7 @@ import {emailVerification} from "../lib/constants";
 import process from "node:process";
 import sendMail from "../lib/sendMail";
 import authorisation from "../lib/authorisation";
+import {IOptions, IPublicUser, IResponsePeak, IResponseUser} from "../lib/types";
 
 router.use(express.json());
 
@@ -26,22 +27,30 @@ router.get('/', async (req, res) => {
 router.get('/login', async (req, res) => {
 	if (req.body.email && emailVerification(req.body.email)) {
 		const client = await pool.connect()
-		const user = await client.query(`SELECT * FROM users WHERE email = '${req.body.email.toLowerCase()}'`);
-		const loggedUser = user.rows[0]
+		const loggedUser = await client.query(`SELECT * FROM users WHERE email = '${req.body.email.toLowerCase()}'`).then(response => {
+			return response.rows[0]
+		});
 
 		if (loggedUser) {
 			if (await bcrypt.compare(req.body.password + loggedUser.registration_date, loggedUser.password)) {
-				const role = await client.query(`SELECT * FROM roles WHERE id='${loggedUser.role_id}'`);
-				const posts = await client.query(`SELECT * FROM posts WHERE author_id='${loggedUser.id}'`);
+				const role = await client.query(`SELECT * FROM roles WHERE id='${loggedUser.role_id}'`).then(response => {
+					return response.rows[0]
+				});
+				const posts = await client.query(`SELECT * FROM posts WHERE author_id='${loggedUser.id}'`).then(response => {
+					return response.rows
+				});
+				const peaks: IResponsePeak[] = await client.query('SELECT * FROM peaks').then(response => {
+					return response.rows
+				});
 				const token = jwt.sign({
 					id: loggedUser.id,
-					role_id: role.rows[0].id
+					role_id: role.id
 				}, process.env.TOKEN_SECRET_KEY as string, { expiresIn: process.env.TOKEN_EXPIRATION_TIME })
 
-				const response = {
+				const response: { data: IPublicUser, token: string } = {
 					data: {
 						id: loggedUser.id,
-						loggedUsername: loggedUser.loggedUsername,
+						username: loggedUser.username,
 						email: loggedUser.email,
 						firstName: loggedUser.firstname,
 						lastName: loggedUser.lastname,
@@ -52,9 +61,34 @@ router.get('/login', async (req, res) => {
 						totalSuspensions: loggedUser.total_suspensions,
 						isConfirmed: loggedUser.is_confirmed,
 						messages: loggedUser.messages ?? [],
-						posts: posts.rows,
+						posts: posts.map(post => ({
+							id: post.id,
+							createdAt: new Date(Number(post.created_at)),
+							notes: post.notes,
+							photo: post.photo,
+							peak: peaks.filter(peak => peak.id === post.peak_id).map(peak => ({
+								id: peak.id,
+								name: peak.name,
+								height: peak.height,
+								description: peak.description,
+								trial: peak.trial,
+								localizationLat: peak.localization_lat,
+								localizationLng: peak.localization_lng,
+								image: peak.image,
+							}))[0],
+							isHidden: post.is_hidden,
+							author: {
+								id: loggedUser.id,
+								username: loggedUser.username,
+								firstName: loggedUser.firstname,
+								avatar: loggedUser.avatar,
+								isSuspended: !!loggedUser.suspension_timeout && loggedUser.suspension_timeout > Date.now(),
+								isBanned: loggedUser.is_banned,
+								role: loggedUser.role_id,
+							}
+						})),
 						registrationDate: new Date(Number(loggedUser.registration_date)),
-						role: role.rows[0],
+						role: role,
 					},
 					token,
 				}
@@ -149,12 +183,11 @@ Link aktywacyjny jest ważny przez 24 godziny.`
 
 				const subject = `Korona Gór Świętokrzyskich - utworzono konto Użytkownika ${newUser.username}`
 
-				const options = {
+				const options: IOptions = {
 					email: newUser.email.toLowerCase(),
 					text,
 					html,
-					subject,
-					token,
+					subject
 				}
 
 				sendMail(options)
@@ -189,15 +222,28 @@ router.put("/:itemId", async (req, res) => {
 		const client = await pool.connect()
 
 		if (client) {
-			const responseUser = await client.query(`SELECT *
+			const user = await client.query(`SELECT *
 																							 FROM users
-																							 WHERE id = ($1)::uuid`, [itemId]);
-			const roles = await client.query('SELECT * FROM roles');
+																							 WHERE id = ($1)::uuid`, [itemId]).then(response => {
+																								 return response.rows[0]
+			});
+			const role = await client.query(`SELECT * FROM roles WHERE id=($1)`, [user.role_id]).then(response => {
+				return response.rows[0]
+			});
+			const posts = await client.query(`SELECT * FROM posts WHERE author_id='${user.id}'`).then(response => {
+				return response.rows
+			});
+			const peaks: IResponsePeak[] = await client.query('SELECT * FROM peaks').then(response => {
+				return response.rows
+			});
 			const salt = await bcrypt.genSalt();
 
-			const user = responseUser.rows[0];
+			interface IUpdate extends IResponseUser {
+				password: string;
+			}
 
-			const updatedUser = {
+			const updatedUser: IUpdate = {
+				id: user.id,
 				username: req.body.username ?? user.username,
 				email: user.email,
 				password: await hashedPassword(req.body.password + user.registration_date, salt) ?? user.password,
@@ -210,7 +256,51 @@ router.put("/:itemId", async (req, res) => {
 				total_suspensions: req.body.totalSuspensions ?? user.total_suspensions,
 				is_confirmed: req.body.isConfirmed === undefined ? user.is_confirmed : req.body.isConfirmed,
 				messages: req.body.messages ?? user.messages ?? [],
-				role_id: roles.rows.filter(role => role.id === (req.body.role?.id ?? user.role_id))[0].id,
+				role_id: role.id,
+				registration_date: user.registration_date
+			}
+
+			const responseUser: IPublicUser = {
+				id: updatedUser.id,
+				username: updatedUser.username,
+				email: updatedUser.email,
+				firstName: updatedUser.firstname,
+				lastName: updatedUser.lastname,
+				avatar: updatedUser.avatar,
+				description: updatedUser.description,
+				isBanned: updatedUser.is_banned,
+				suspensionTimeout: new Date(Number(updatedUser.suspension_timeout)),
+				totalSuspensions: updatedUser.total_suspensions,
+				isConfirmed: updatedUser.is_confirmed,
+				messages: updatedUser.messages ?? [],
+				posts: posts.map(post => ({
+					id: post.id,
+					createdAt: new Date(Number(post.created_at)),
+					notes: post.notes,
+					photo: post.photo,
+					peak: peaks.filter(peak => peak.id === post.peak_id).map(peak => ({
+						id: peak.id,
+						name: peak.name,
+						height: peak.height,
+						description: peak.description,
+						trial: peak.trial,
+						localizationLat: peak.localization_lat,
+						localizationLng: peak.localization_lng,
+						image: peak.image,
+					}))[0],
+					isHidden: post.is_hidden,
+					author: {
+						id: updatedUser.id,
+						username: updatedUser.username,
+						firstName: updatedUser.firstname,
+						avatar: updatedUser.avatar,
+						isSuspended: !!updatedUser.suspension_timeout && updatedUser.suspension_timeout > Date.now(),
+						isBanned: updatedUser.is_banned,
+						role: updatedUser.role_id,
+					}
+				})),
+				registrationDate: new Date(Number(updatedUser.registration_date)),
+				role,
 			}
 
 			try {
@@ -238,7 +328,7 @@ router.put("/:itemId", async (req, res) => {
 																is_confirmed='${updatedUser.is_confirmed}',
 																role_id='${updatedUser.role_id}'
 														WHERE id = ($1)::uuid`, [user.id]);
-				res.status(200).send(updatedUser);
+				res.status(200).send(responseUser);
 			} catch (error) {
 				res.status(500).send(error.message);
 			}
