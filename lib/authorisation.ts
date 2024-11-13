@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 import process from "node:process";
 import {Response} from "express";
 
-const authorisation = (token: string, res: Response, id?: string) => {
+const authorisation = (token: string, res: Response, id?: string, requireRole?: number) => {
 	if (!token) {
 		res.status(403).json({"message": 'Invalid or expired token'})
 		return false
@@ -29,7 +29,7 @@ const authorisation = (token: string, res: Response, id?: string) => {
 		if (decoded().id !== id) {
 			// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 			// @ts-expect-error
-			if (decoded().role_id < 3) {
+			if (decoded().role_id < (requireRole ?? 3)) {
 				return true
 			} else {
 				res.status(403).json({"message": 'Authentication failed'})
