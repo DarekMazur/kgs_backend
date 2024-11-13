@@ -77,10 +77,10 @@ const getFromDatabase = async (table: string, res: Response, id?: string | numbe
 			client.release()
 			console.log('Client released');
 		} else {
-			res.status(400).send('No such results');
+			res.status(400).json({"message": 'No such results'});
 		}
 	} else {
-		res.status(500).send('Connection failed');
+		res.status(500).json({"message": 'Connection failed'});
 	}
 }
 
