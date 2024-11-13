@@ -1,6 +1,7 @@
 import express from 'express';
 import getFromDatabase from "../lib/getFromDatabase";
 import {pool} from "../client";
+import {IPublicPeak, IResponsePeak} from "../lib/types";
 const router = express.Router();
 
 router.get('/', async (_req, res) => {
@@ -14,13 +15,13 @@ router.get('/:itemId', async (req, res) => {
 		if (client) {
 			const itemId = req.params.itemId
 
-			const peak = await client.query(`SELECT * FROM peaks WHERE id=($1)`, [itemId]).then((result) => {
+			const peak: IResponsePeak = await client.query(`SELECT * FROM peaks WHERE id=($1)`, [itemId]).then((result) => {
 				return result.rows[0]
 			}).catch((err) => {
 				res.status(500).send(`Connection failed: ${err.message}`);
 			})
 
-			const peakTemplate = {
+			const peakTemplate: IPublicPeak = {
 				id: peak.id,
 				name: peak.name,
 				height: peak.height,
