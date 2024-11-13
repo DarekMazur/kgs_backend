@@ -16,7 +16,7 @@ router.use(express.json());
 const hashedPassword = (pass: string, salt: string) =>  bcrypt.hash(pass, salt);
 
 router.get('/', async (req, res) => {
-	const token = (req.header('Authorization' as string).split(' ')[1])
+	const token = (req.header('Authorization' as string)?.split(' ')[1])
 
 	if (authorisation(token, res)) {
 		await getFromDatabase('users', res)
@@ -83,7 +83,7 @@ router.get("/current", async (req, res) => {
 router.get("/:itemId", async (req, res) => {
 	const itemId = req.params.itemId;
 
-	const token = (req.header('Authorization' as string).split(' ')[1])
+	const token = (req.header('Authorization' as string)?.split(' ')[1])
 
 	if (authorisation(token, res)) {
 		await getFromDatabase('users', res, itemId)
@@ -94,7 +94,7 @@ router.post("/", async (req, res) => {
 	const timestamp = Date.now();
 	const salt = await bcrypt.genSalt();
 
-	const token = (req.header('Authorization' as string).split(' ')[1])
+	const token = (req.header('Authorization' as string)?.split(' ')[1])
 
 	if (authorisation(token, res)) {
 		const client = await pool.connect()
@@ -102,7 +102,7 @@ router.post("/", async (req, res) => {
 		const checkEmail = await client.query(`SELECT * FROM users WHERE email='${req.body.email.toLowerCase()}'`)
 
 		if (checkEmail && checkEmail.rows.length > 0) {
-			res.status(403).send('Email already registered').end();
+			res.status(403).send('Email already registered');
 			return
 		}
 
@@ -159,7 +159,7 @@ Link aktywacyjny jest ważny przez 24 godziny.`
 
 				sendMail(options)
 			} catch (error) {
-				res.status(500).send(error.message).end();
+				res.status(500).send(error.message);
 				return
 			}
 
@@ -229,7 +229,7 @@ router.put("/:itemId", async (req, res) => {
 router.delete("/:itemId", async (req, res) => {
 	const itemId = req.params.itemId;
 
-	const token = (req.header('Authorization' as string).split(' ')[1])
+	const token = (req.header('Authorization' as string)?.split(' ')[1])
 
 	if (authorisation(token, res)) {
 		await deleteFromDatabase('users', res, itemId)

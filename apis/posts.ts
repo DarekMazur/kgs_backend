@@ -1,23 +1,23 @@
 import express from 'express';
 import { v4 as uuidv4 } from "uuid";
 import getFromDatabase from "../lib/getFromDatabase";
-import {pool} from "../client";
+import { pool } from "../client";
 import authorisation from "../lib/authorisation";
 const router = express.Router();
 
 router.use(express.json());
 
 router.get('/', async (req, res) => {
-	const token = (req.header('Authorization' as string).split(' ')[1])
+	const token = (req.header('Authorization' as string)?.split(' ')[1])
 
 	if (authorisation(token, res)) {
-		await getFromDatabase('users', res)
+		await getFromDatabase('posts', res)
 	}
 })
 
 router.get('/:itemId', async (req, res) => {
 	const itemId = req.params.itemId
-	const token = (req.header('Authorization' as string).split(' ')[1])
+	const token = (req.header('Authorization' as string)?.split(' ')[1])
 
 	if (authorisation(token, res)) {
 
@@ -63,7 +63,7 @@ router.post('/', async (req, res) => {
 	const id = uuidv4()
 
 	if (req.body) {
-		const token = (req.header('Authorization' as string).split(' ')[1])
+		const token = (req.header('Authorization' as string)?.split(' ')[1])
 
 		const {notes, photo, peakId, authorId} = req.body
 
@@ -103,7 +103,7 @@ router.post('/', async (req, res) => {
 
 router.put('/:itemId', async (req, res) => {
 	if (req.params.itemId && req.body) {
-		const token = (req.header('Authorization' as string).split(' ')[1])
+		const token = (req.header('Authorization' as string)?.split(' ')[1])
 
 		const client = await pool.connect()
 
@@ -114,7 +114,7 @@ router.put('/:itemId', async (req, res) => {
 			const post = await client.query(`SELECT * FROM posts WHERE id=($1)`, [itemId]).then(response => {
 				return response.rows[0]
 			})
-			const author = await client.query(`SELECT * FROM users WHERE id=($1)`, [post.autor_id]).then(response => {
+			const author = await client.query(`SELECT * FROM users WHERE id=($1)`, [post.author_id]).then(response => {
 				return response.rows[0]
 			})
 			const peak = await client.query(`SELECT * FROM peaks WHERE id=($1)`, [post.peak_id]).then(response => {
@@ -148,7 +148,7 @@ router.put('/:itemId', async (req, res) => {
 
 router.delete('/:itemId', async (req, res) => {
 	if (req.params.itemId) {
-		const token = (req.header('Authorization' as string).split(' ')[1])
+		const token = (req.header('Authorization' as string)?.split(' ')[1])
 
 		if (authorisation(token, res)) {
 			const client = await pool.connect();
