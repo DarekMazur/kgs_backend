@@ -50,7 +50,16 @@ const getFromDatabase = async (table: string, res: Response, id?: string | numbe
 						createdAt: new Date(Number(post.created_at)),
 						notes: post.notes,
 						photo: post.photo,
-						peak:	peaks.filter(peak => peak.id === post.peak_id)[0],
+						peak:	peaks.filter(peak => peak.id === post.peak_id).map(peak => ({
+								id: peak.id,
+								name: peak.name,
+								height: peak.height,
+								description: peak.description,
+								trial: peak.trial,
+								localizationLat: peak.localization_lat,
+								localizationLng: peak.localization_lng,
+								image: peak.image,
+							}))[0],
 						isHidden: post.is_hidden,
 						author: {
 							id: user.id,

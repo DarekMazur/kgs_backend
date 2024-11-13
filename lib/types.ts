@@ -91,3 +91,10 @@ export interface IResponseUser extends IUser {
 	registration_date: number,
 	role_id: number,
 }
+
+export interface IOptions {
+	email: string,
+	text: string,
+	html: string,
+	subject: string
+}
