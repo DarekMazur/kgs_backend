@@ -48,7 +48,7 @@ export interface IResponsePeak extends IPeak {
 }
 
 export interface IPublicPost extends IPost {
-	peak: IPeak;
+	peak: IPublicPeak;
 	isHidden: boolean;
 	createdAt: Date;
 	author: {

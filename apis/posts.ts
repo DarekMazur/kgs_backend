@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import getFromDatabase from "../lib/getFromDatabase";
 import { pool } from "../client";
 import authorisation from "../lib/authorisation";
+import {IPublicPost, IResponsePeak, IResponsePost, IResponseUser} from "../lib/types";
 const router = express.Router();
 
 router.use(express.json());
@@ -24,24 +25,33 @@ router.get('/:itemId', async (req, res) => {
 
 	const client = await pool.connect();
 
-	const post = await client.query(`SELECT * FROM posts WHERE id=($1)`, [itemId]).then(response => {
+	const post: IResponsePost = await client.query(`SELECT * FROM posts WHERE id=($1)`, [itemId]).then(response => {
 		return response.rows[0]
 	})
 
-	const peak = await client.query(`SELECT * FROM peaks WHERE id=($1)`, [post.peak_id]).then(response => {
+	const peaks: IResponsePeak[] = await client.query(`SELECT * FROM peaks WHERE id=($1)`, [post.peak_id]).then(response => {
+		return response.rows
+	})
+
+	const user: IResponseUser = await client.query(`SELECT * FROM users WHERE id=($1)`, [post.author_id]).then(response => {
 		return response.rows[0]
 	})
 
-	const user = await client.query(`SELECT * FROM users WHERE id=($1)`, [post.author_id]).then(response => {
-		return response.rows[0]
-	})
-
-	const postTemplate = {
+	const postResponse: IPublicPost = {
 		id: post.id,
 		createdAt: new Date(Number(post.created_at)),
 		notes: post.notes,
 		photo: post.photo,
-		peak,
+		peak: peaks.map(peak => ({
+			id: peak.id,
+			name: peak.name,
+			height: peak.height,
+			description: peak.description,
+			trial: peak.trial,
+			image: peak.image,
+			localizationLat: peak.localization_lat,
+			localizationLng: peak.localization_lng,
+		}))[0],
 		isHidden: post.is_hidden,
 		author: {
 			id: user.id,
@@ -54,7 +64,7 @@ router.get('/:itemId', async (req, res) => {
 		},
 	}
 
-	res.status(200).send(postTemplate)
+	res.status(200).send(postResponse)
 	}
 })
 
@@ -71,23 +81,40 @@ router.post('/', async (req, res) => {
 			const client = await pool.connect();
 
 			if (client) {
-				const author = await client.query('SELECT id, username, firstname, avatar, suspension_timeout, is_banned, role_id FROM users WHERE id=($1)', [authorId]).then(response => {
+				const author: IResponseUser = await client.query('SELECT id, username, firstname, avatar, suspension_timeout, is_banned, role_id FROM users WHERE id=($1)', [authorId]).then(response => {
 					return response.rows[0]
 				})
 
-				const peak = await client.query(`SELECT * FROM peaks WHERE id = ($1)`, [peakId]).then(response => {
-					return response.rows[0]
+				const peak: IResponsePeak[] = await client.query(`SELECT * FROM peaks WHERE id = ($1)`, [peakId]).then(response => {
+					return response.rows
 				})
 
-				await client.query(`INSERT INTO posts (id, created_at, notes, photo, peak_id, is_hidden, author_id) VALUES ('${id}', '${now}', '${notes}', '${photo}', '${peak.id}', '${false}', '${author.id}') ON CONFLICT DO NOTHING;`).then(() => {
-					const newPost = {
+				await client.query(`INSERT INTO posts (id, created_at, notes, photo, peak_id, is_hidden, author_id) VALUES ('${id}', '${now}', '${notes}', '${photo}', '${peak[0].id}', '${false}', '${author.id}') ON CONFLICT DO NOTHING;`).then(() => {
+					const newPost: IPublicPost = {
 						id,
 						createdAt: new Date(now),
 						notes,
 						photo,
-						peak,
+						peak: peak.map(peak => ({
+							id: peak.id,
+							name: peak.name,
+							height: peak.height,
+							description: peak.description,
+							trial: peak.trial,
+							image: peak.image,
+							localizationLat: peak.localization_lat,
+							localizationLng: peak.localization_lng,
+						}))[0],
 						isHidden: false,
-						author,
+						author: {
+							id: author.id,
+							username: author.username,
+							firstName: author.firstname,
+							avatar: author.avatar,
+							isSuspended: !!author.suspension_timeout && author.suspension_timeout > Date.now(),
+							isBanned: author.is_banned,
+							role: author.role_id
+						},
 					}
 
 					res.status(200).send(newPost)
@@ -111,25 +138,42 @@ router.put('/:itemId', async (req, res) => {
 			const itemId = req.params.itemId;
 			const { notes, photo, isHidden } = req.body
 
-			const post = await client.query(`SELECT * FROM posts WHERE id=($1)`, [itemId]).then(response => {
+			const post: IResponsePost = await client.query(`SELECT * FROM posts WHERE id=($1)`, [itemId]).then(response => {
 				return response.rows[0]
 			})
-			const author = await client.query(`SELECT * FROM users WHERE id=($1)`, [post.author_id]).then(response => {
+			const author: IResponseUser = await client.query(`SELECT * FROM users WHERE id=($1)`, [post.author_id]).then(response => {
 				return response.rows[0]
 			})
-			const peak = await client.query(`SELECT * FROM peaks WHERE id=($1)`, [post.peak_id]).then(response => {
-				return response.rows[0]
+			const peaks: IResponsePeak[] = await client.query(`SELECT * FROM peaks WHERE id=($1)`, [post.peak_id]).then(response => {
+				return response.rows
 			})
 
 			if (authorisation(token, res, author.id)) {
-				const updatedPost = {
+				const updatedPost: IPublicPost = {
 					id: itemId,
-					createdAt: post.created_at,
+					createdAt: new Date(Number(post.created_at)),
 					notes: notes ?? post.notes,
 					photo: photo ?? post.photo,
-					peak,
+					peak: peaks.map(peak => ({
+						id: peak.id,
+						name: peak.name,
+						height: peak.height,
+						description: peak.description,
+						trial: peak.trial,
+						image: peak.image,
+						localizationLat: peak.localization_lat,
+						localizationLng: peak.localization_lng,
+					}))[0],
 					isHidden: isHidden === undefined ? post.is_hidden : isHidden,
-					author,
+					author: {
+						id: author.id,
+						username: author.username,
+						firstName: author.firstname,
+						avatar: author.avatar,
+						isSuspended: !!author.suspension_timeout && author.suspension_timeout > Date.now(),
+						isBanned: author.is_banned,
+						role: author.role_id
+					},
 				}
 
 				await client.query(`UPDATE posts SET notes='${updatedPost.notes}', photo='${updatedPost.photo}', is_hidden='${updatedPost.isHidden}' WHERE id=($1)`, [itemId]).then(() => {
