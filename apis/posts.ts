@@ -5,6 +5,7 @@ import { pool } from "../client";
 import authorisation from "../lib/authorisation";
 import {IPublicPost, IResponsePeak, IResponsePost, IResponseUser} from "../lib/types";
 const router = express.Router();
+import { v2 as cloudinary } from 'cloudinary'
 
 router.use(express.json());
 
@@ -89,12 +90,16 @@ router.post('/', async (req, res) => {
 					return response.rows
 				})
 
+				const image = await cloudinary.uploader.upload(photo).then(results => {
+					return results.url
+				})
+
 				await client.query(`INSERT INTO posts (id, created_at, notes, photo, peak_id, is_hidden, author_id) VALUES ('${id}', '${now}', '${notes}', '${photo}', '${peak[0].id}', '${false}', '${author.id}') ON CONFLICT DO NOTHING;`).then(() => {
 					const newPost: IPublicPost = {
 						id,
 						createdAt: new Date(now),
 						notes,
-						photo,
+						photo: image,
 						peak: peak.map(peak => ({
 							id: peak.id,
 							name: peak.name,

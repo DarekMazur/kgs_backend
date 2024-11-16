@@ -10,9 +10,16 @@ import {emailVerification} from "../lib/constants";
 import process from "node:process";
 import sendMail from "../lib/sendMail";
 import authorisation from "../lib/authorisation";
+import { v2 as cloudinary } from 'cloudinary'
 import {IOptions, IPublicUser, IResponsePeak, IResponseUser} from "../lib/types";
 
 router.use(express.json());
+
+cloudinary.config({
+	cloud_name: process.env.CLOUDIANRY_NAME,
+	api_key: process.env.CLOUDINARY_KEY,
+	api_secret: process.env.CLOUDINARY_SECRET,
+})
 
 const hashedPassword = (pass: string, salt: string) =>  bcrypt.hash(pass, salt);
 
@@ -242,6 +249,10 @@ router.put("/:itemId", async (req, res) => {
 				password: string;
 			}
 
+			const image = await req.body.avatar ? cloudinary.uploader.upload(req.body.avatar).then(results => {
+				return results.url
+			}) : null
+
 			const updatedUser: IUpdate = {
 				id: user.id,
 				username: req.body.username ?? user.username,
@@ -249,7 +260,7 @@ router.put("/:itemId", async (req, res) => {
 				password: await hashedPassword(req.body.password + user.registration_date, salt) ?? user.password,
 				firstname: req.body.firstName ?? user.firstname,
 				lastname: req.body.lastName ?? user.lastname,
-				avatar: req.body.avatar ?? user.avatar,
+				avatar: image ?? user.avatar,
 				description: req.body.description ?? user.description,
 				is_banned: req.body.isBanned === undefined ? user.is_banned : req.body.is_banned,
 				suspension_timeout: req.body.suspensionTimeout ?? user.suspension_timeout,
