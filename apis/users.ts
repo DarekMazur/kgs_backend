@@ -234,6 +234,7 @@ router.put("/:itemId", async (req, res) => {
 																							 WHERE id = ($1)::uuid`, [itemId]).then(response => {
 																								 return response.rows[0]
 			});
+
 			const role = await client.query(`SELECT * FROM roles WHERE id=($1)`, [user.role_id]).then(response => {
 				return response.rows[0]
 			});
@@ -250,7 +251,7 @@ router.put("/:itemId", async (req, res) => {
 			}
 
 			const image = await req.body.avatar ? cloudinary.uploader.upload(req.body.avatar).then(results => {
-				return results.url
+				return results
 			}) : null
 
 			const updatedUser: IUpdate = {
@@ -260,7 +261,7 @@ router.put("/:itemId", async (req, res) => {
 				password: await hashedPassword(req.body.password + user.registration_date, salt) ?? user.password,
 				firstname: req.body.firstName ?? user.firstname,
 				lastname: req.body.lastName ?? user.lastname,
-				avatar: image ?? user.avatar,
+				avatar: (await image).secure_url ?? user.avatar,
 				description: req.body.description ?? user.description,
 				is_banned: req.body.isBanned === undefined ? user.is_banned : req.body.is_banned,
 				suspension_timeout: req.body.suspensionTimeout ?? user.suspension_timeout,
