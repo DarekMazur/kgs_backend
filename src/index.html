@@ -9,7 +9,23 @@
   <body>
     <header>
       <div class="logo"></div>
-      <h1>Korona Gór Świętokrzyskich API</h1>
+      <h1>Korona Gór Świętokrzyskich</h1>
+      <h2>API</h2>
+      <h3>O KGS</h3>
+      <p>Korona Gór Świętokrzyskich jest aplikacją łączącą promocję turystyki górskiej w Górach Świętokrzyskich z aspektem społecznościowym.</p>
+      <h3>Endpointy</h3>
+      <div>
+        <ul>
+          <li>/api/users - dostęp do listy użytkowników</li>
+          <li>/api/posts - dostęp do listy wpisów</li>
+          <li>/api/peaks - dostęp do listy szczytów</li>
+          <li>/api/roles - dostęp do listy ról użytkowników</li>
+        </ul>
+      </div>
+      <h3>Bezpieczeństwo</h3>
+      <p>Dane użytkowników są przechowywane w zabezpieczonej bazie danych. Dodatkowo dane szczególnie istotne (hasło) są szyfrowane.</p>
+      <p>Podczas tworzenia hasła nie istnieją wymogi dotyczące długości czy róznorodności znaków. Hasło jest weryfikowane przy pomocy entropii i jest akceptowane w przypadku, jeśli entropia będzie nie niższa, niż 70.</p>
+      <p>Tworząc hasło najlepiej jest użyć menegera haseł.</p>
     </header>
   </body>
 </html>
