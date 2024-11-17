@@ -69,6 +69,66 @@ const recoveryView = (id: string, username: string) => {
 	)
 }
 
+const weakPassView = (id: string) => {
+	return (
+		`<!doctype html>
+		<html lang="pl">
+			<head>
+				<meta charset="UTF-8">
+				<meta name="viewport" content="width=device-width, initial-scale=1">
+				<title>Korona Gór Śwętokrzyskich | Reset</title>
+		</head>
+		<body style="max-width: 100vw; background-color: #272724; color: #eef7eb; padding: 2rem">
+			<div style="background: url(https://res.cloudinary.com/ddyqnp7pp/image/upload/v1731279976/logoFullW_lylrnm.png) center/contain no-repeat; margin: 2rem; max-width: 100vw; height: 200px;"></div>
+			<h3 style="font-weight: bold; margin-bottom: 2rem; text-align: center; color: crimson">Twoje hasło jest zbyt łatwe do złamania.</h3>
+			<p style="color: crimson">Dopisz proszę coś do niego, aby było dłuższe. Możesz np. ułożyć jakieś zdanie.</p>
+			<form method="POST" action="/reset-password" style="display: flex; justify-content: center; align-items: center">
+			<fieldset style="padding: 4rem 3rem; max-width: 35rem; display: flex; justify-content: center; align-items: center">
+			<legend>Ustaw nowe hasło</legend>
+				<input type="password" name="password" id="password" placeholder="Nowe hasło" required style="
+					border-radius: 5px;
+					background: rgb(249, 250, 250);
+					border: 1px solid rgb(181, 189, 196);
+					font-size: 16px;
+					height: 30px;
+					line-height: 24px;
+					padding: 7px 8px;
+					color: rgb(8, 9, 10);
+					box-shadow: none;
+					:focus{
+						background-color: #fff;
+						border-color: #3b49df;
+						box-shadow: 1px 1px 0 #3b49df;
+					}" 
+				/>
+				<input type="hidden" name="id" value="${id}" />
+				<input type="submit" value="Zatwierdź" style="
+					display: inline-block;
+					outline: none;
+					cursor: pointer;
+					font-size: 14px;
+					line-height: 1;
+					border-radius: 500px;
+					border: 1px solid transparent;
+					letter-spacing: 2px;
+					min-width: 160px;
+					text-transform: uppercase;
+					white-space: normal;
+					font-weight: 700;
+					text-align: center;
+					padding: 16px 14px 18px;
+					margin-left: 2rem;
+					color: #c1c0c0;
+					box-shadow: inset 0 0 0 2px #c1c0c0;
+					background-color: transparent;
+					height: 48px;
+				">
+				</fieldset>
+			</form>
+		</body>`
+	)
+}
+
 const resetView = () => {
 	return(
 		`<!doctype html>
@@ -165,7 +225,7 @@ router.post('/', async (req, res) => {
 		const client = await pool.connect()
 
 		if (entropy(password) < acceptedEntropy)  {
-			res.status(503).json({"message": "Weak password"});
+			res.status(503).send(weakPassView(id));
 		}
 
 		const hashedPassword = (pass: string, salt: string) =>  bcrypt.hash(pass, salt);
