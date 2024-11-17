@@ -6,6 +6,7 @@ import {pool} from "../client";
 import jwt from "jsonwebtoken";
 import process from "node:process";
 import sendMail from "../lib/sendMail";
+import {acceptedEntropy, entropy} from "../lib/constants";
 const router = express.Router();
 router.use(bodyParser.urlencoded({ extended: true }));
 
@@ -108,8 +109,6 @@ router.post('/forgot/:email', async (req, res) => {
 	const response = await client.query(`SELECT * FROM users WHERE email=($1)`, [userEmail])
 	const user = await response.rows[0]
 
-	console.log(response.rows[0])
-
 	const {id, username} = user
 
 	const token = jwt.sign({
@@ -164,6 +163,10 @@ router.post('/', async (req, res) => {
 
 	if (id && password) {
 		const client = await pool.connect()
+
+		if (entropy(password) < acceptedEntropy)  {
+			res.status(503).json({"message": "Weak password"});
+		}
 
 		const hashedPassword = (pass: string, salt: string) =>  bcrypt.hash(pass, salt);
 		const salt = await bcrypt.genSalt();
