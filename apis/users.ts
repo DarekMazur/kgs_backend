@@ -32,14 +32,15 @@ router.get('/', async (req, res) => {
 })
 
 router.get('/login', async (req, res) => {
-	if (req.body.email && emailVerification(req.body.email)) {
+	const {email, password} = req.body;
+	if (email && emailVerification(email)) {
 		const client = await pool.connect()
-		const loggedUser = await client.query(`SELECT * FROM users WHERE email = '${req.body.email.toLowerCase()}'`).then(response => {
+		const loggedUser = await client.query(`SELECT * FROM users WHERE email = '${email.toLowerCase()}'`).then(response => {
 			return response.rows[0]
 		});
 
 		if (loggedUser) {
-			if (await bcrypt.compare(req.body.password + loggedUser.registration_date, loggedUser.password)) {
+			if (await bcrypt.compare(password + loggedUser.registration_date, loggedUser.password)) {
 				const role = await client.query(`SELECT * FROM roles WHERE id='${loggedUser.role_id}'`).then(response => {
 					return response.rows[0]
 				});
@@ -110,14 +111,15 @@ router.get('/login', async (req, res) => {
 })
 
 router.get("/current", async (req, res) => {
-	if (!req.header('Authorization') || !req.body.id) {
+	const {id} = req.body;
+	if (!req.header('Authorization') || !id) {
 		res.status(400).send('Request failed').end();
 	}
 
 	const token = (req.header('Authorization') as string).split(' ')[1]
 
-	if (authorisation(token, res, req.body.id)) {
-		await getFromDatabase('users', res, req.body.id)
+	if (authorisation(token, res, id)) {
+		await getFromDatabase('users', res, id)
 	}
 })
 
@@ -134,31 +136,32 @@ router.get("/:itemId", async (req, res) => {
 router.post("/", async (req, res) => {
 	const timestamp = Date.now();
 	const salt = await bcrypt.genSalt();
+	const {password, email, username, role} = req.body;
 
 	const token = (req.header('Authorization' as string)?.split(' ')[1])
 
 	if (authorisation(token, res)) {
 		const client = await pool.connect()
 
-		const checkEmail = await client.query(`SELECT * FROM users WHERE email='${req.body.email.toLowerCase()}'`)
+		const checkEmail = await client.query(`SELECT * FROM users WHERE email='${email.toLowerCase()}'`)
 
 		if (checkEmail && checkEmail.rows.length > 0) {
 			res.status(403).json({"message": 'Email already registered'});
 			return
 		}
 
-		if (req.body.password && (entropy(req.body.password) < acceptedEntropy)) {
+		if (password && (entropy(password) < acceptedEntropy)) {
 			res.status(503).json({"message": "Weak password"}).end();
 			return
 		}
 
 		const newUser = {
 			id: uuidv4(),
-			username: req.body.username,
-			email: req.body.email.toLowerCase(),
-			password: await hashedPassword(req.body.password + timestamp.toString(), salt),
+			username: username,
+			email: email.toLowerCase(),
+			password: await hashedPassword(password + timestamp.toString(), salt),
 			registrationDate: timestamp,
-			role_id: req.body.role.id,
+			role_id: role.id,
 		}
 
 		const publicUser = {
@@ -230,6 +233,8 @@ router.put("/:itemId", async (req, res) => {
 
 	const token = (req.header('Authorization' as string)?.split(' ')[1])
 
+	const {avatar, username, password, firstName, lastName, description, isBanned, suspensionTimeout, totalSuspensions, isConfirmed, messages} = req.body
+
 	if (authorisation(token, res, itemId, 1)) {
 		const client = await pool.connect()
 
@@ -255,29 +260,29 @@ router.put("/:itemId", async (req, res) => {
 				password: string;
 			}
 
-			const image = await req.body.avatar ? cloudinary.uploader.upload(req.body.avatar).then(results => {
+			const image = await avatar ? cloudinary.uploader.upload(avatar).then(results => {
 				return results
 			}) : null
 
-			if (req.body.password && (entropy(req.body.password) < acceptedEntropy)) {
+			if (password && (entropy(password) < acceptedEntropy)) {
 				res.status(503).json({"message": "Weak password"}).end();
 				return
 			}
 
 			const updatedUser: IUpdate = {
 				id: user.id,
-				username: req.body.username ?? user.username,
+				username: username ?? user.username,
 				email: user.email,
-				password: await hashedPassword(req.body.password + user.registration_date, salt) ?? user.password,
-				firstname: req.body.firstName ?? user.firstname,
-				lastname: req.body.lastName ?? user.lastname,
+				password: await hashedPassword(password + user.registration_date, salt) ?? user.password,
+				firstname: firstName ?? user.firstname,
+				lastname: lastName ?? user.lastname,
 				avatar: (await image).secure_url ?? user.avatar,
-				description: req.body.description ?? user.description,
-				is_banned: req.body.isBanned === undefined ? user.is_banned : req.body.is_banned,
-				suspension_timeout: req.body.suspensionTimeout ?? user.suspension_timeout,
-				total_suspensions: req.body.totalSuspensions ?? user.total_suspensions,
-				is_confirmed: req.body.isConfirmed === undefined ? user.is_confirmed : req.body.isConfirmed,
-				messages: req.body.messages ?? user.messages ?? [],
+				description: description ?? user.description,
+				is_banned: isBanned === undefined ? user.is_banned : is_banned,
+				suspension_timeout: suspensionTimeout ?? user.suspension_timeout,
+				total_suspensions: totalSuspensions ?? user.total_suspensions,
+				is_confirmed: isConfirmed === undefined ? user.is_confirmed : isConfirmed,
+				messages: messages ?? user.messages ?? [],
 				role_id: role.id,
 				registration_date: user.registration_date
 			}
