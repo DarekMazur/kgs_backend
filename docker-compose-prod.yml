@@ -1,0 +1,35 @@
+version: '3.9'
+services:
+  batquiz:
+    container_name: kgsApi
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    image: kgs_api-server:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_HOST: ${DATABASE_HOST}
+      DATABASE_NAME: ${DATABASE_NAME}
+      DATABASE_USER: ${DATABASE_USER}
+      DATABASE_PORT: ${DATABASE_PORT}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      NODE_ENV: ${NODE_ENV}
+    volumes:
+      - /var/www/batquiz/lib:/opt/app/lib
+      - /var/www/batquiz/package.json:/opt/package.json
+      - /var/www/batquiz/package-lock.json:/opt/package-lock.json
+      - ./nginx-conf:/etc/nginx/conf.d
+      - /etc/letsencrypt:/etc/letsencrypt
+      - /var/lib/letsencrypt:/var/lib/letsencrypt
+
+      - /var/www/kgs/.env:/opt/app/.env
+    ports:
+      - '1337:3000'
+    networks:
+      - strapi
+
+networks:
+  strapi:
+    name: ${DATABASE_NETWORK}
+    external: true

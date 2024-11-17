@@ -6,7 +6,7 @@ import deleteFromDatabase from "../lib/deleteFromDatabase";
 const router = express.Router();
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken'
-import {emailVerification} from "../lib/constants";
+import {acceptedEntropy, emailVerification, entropy} from "../lib/constants";
 import process from "node:process";
 import sendMail from "../lib/sendMail";
 import authorisation from "../lib/authorisation";
@@ -147,6 +147,11 @@ router.post("/", async (req, res) => {
 			return
 		}
 
+		if (req.body.password && (entropy(req.body.password) < acceptedEntropy)) {
+			res.status(503).json({"message": "Weak password"}).end();
+			return
+		}
+
 		const newUser = {
 			id: uuidv4(),
 			username: req.body.username,
@@ -253,6 +258,11 @@ router.put("/:itemId", async (req, res) => {
 			const image = await req.body.avatar ? cloudinary.uploader.upload(req.body.avatar).then(results => {
 				return results
 			}) : null
+
+			if (req.body.password && (entropy(req.body.password) < acceptedEntropy)) {
+				res.status(503).json({"message": "Weak password"}).end();
+				return
+			}
 
 			const updatedUser: IUpdate = {
 				id: user.id,
