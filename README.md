@@ -141,3 +141,12 @@ The application uses a PostgreSQL database to store quiz questions and high scor
 - `CLOUDIANRY_NAME` Cloudinary account name
 - `CLOUDINARY_KEY` Cloudinary account public key
 - `CLOUDINARY_SECRET` Cloudinary secret
+
+
+## Prepare mock data
+
+To push mock data to database run commands:
+
+```bash
+node generateMockData
+```
