@@ -278,7 +278,7 @@ router.put("/:itemId", async (req, res) => {
 				lastname: lastName ?? user.lastname,
 				avatar: (await image).secure_url ?? user.avatar,
 				description: description ?? user.description,
-				is_banned: isBanned === undefined ? user.is_banned : is_banned,
+				is_banned: isBanned === undefined ? user.is_banned : isBanned,
 				suspension_timeout: suspensionTimeout ?? user.suspension_timeout,
 				total_suspensions: totalSuspensions ?? user.total_suspensions,
 				is_confirmed: isConfirmed === undefined ? user.is_confirmed : isConfirmed,
